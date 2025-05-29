@@ -7,7 +7,7 @@ import pandas as pd
 
 # Configuration
 BOT_NAME = "📘 EduMentor – AI Chatbot"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Ask Groq API
