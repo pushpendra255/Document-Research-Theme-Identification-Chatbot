@@ -8,7 +8,7 @@ BOT_NAME = "📘 EduMentor – AI Chatbot"
 GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Ask Groq LLaMA-3
+# Ask Groq
 def ask_groq(prompt):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -17,7 +17,7 @@ def ask_groq(prompt):
     data = {
         "model": "llama3-70b-8192",
         "messages": [
-            {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and documents."},
+            {"role": "system", "content": "You are an assistant that gives short, relevant answers from Indian government PDFs and policies."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -34,31 +34,31 @@ def extract_text(file):
     except:
         return ""
 
-# UI Setup
+# UI
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center'>Ask questions related to uploaded PDFs or Indian policies</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # Upload
-uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
+uploaded = st.file_uploader("📄 Upload your PDF(s)", type="pdf", accept_multiple_files=True)
 
 # Ask
 query = st.text_input("💬 Ask your question here:")
 
-# Stylish button
+# Submit button
 submit = st.button("🚀 Get Answer", use_container_width=True)
 
-# On click
 if submit and query:
     with st.spinner("Thinking..."):
-        all_text = "\n".join(extract_text(f) for f in uploaded) if uploaded else ""
-        if query.lower() in all_text.lower():
-            short_prompt = f"Give a short, clear answer to the question based on this text:\n\n{all_text[:8000]}\n\nQ: {query}"
-            answer = ask_groq(short_prompt)
+        combined_text = "\n".join(extract_text(f) for f in uploaded) if uploaded else ""
+        
+        if combined_text.strip():
+            prompt = f"Based on the following document, answer the question briefly:\n\n{combined_text[:10000]}\n\nQuestion: {query}"
+            answer = ask_groq(prompt)
         else:
             answer = ask_groq(query)
 
-        # Show final answer only
+        # Answer output
         st.markdown("### ✅ Answer")
         st.success(answer)
