@@ -5,122 +5,87 @@ import requests
 import re
 import pandas as pd
 
-# Configuration
+# ========== CONFIG ==========
 BOT_NAME = "📘 EduMentor – AI Chatbot"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Ask Groq API
+# ========== FUNCTIONS ==========
 def ask_groq(prompt):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    data = {
+    payload = {
         "model": "llama3-70b-8192",
         "messages": [
-            {"role": "system", "content": "You are an assistant that provides concise answers based on Indian policies and uploaded documents."},
+            {"role": "system", "content": "You are an assistant that gives short, clear answers and summarizes themes from Indian policies and documents."},
             {"role": "user", "content": prompt}
         ]
     }
     try:
-        res = requests.post(GROQ_API_URL, headers=headers, json=data)
-        return res.json()["choices"][0]["message"]["content"].strip()
+        response = requests.post(GROQ_API_URL, headers=headers, json=payload)
+        return response.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"❌ API error: {e}"
 
-# Cached PDF text extraction
-@st.cache_data(show_spinner=False)
-def extract_text_cached(file):
-    reader = PdfReader(file)
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
+def extract_text(file):
+    try:
+        return "\n".join(page.extract_text() or "" for page in PdfReader(file).pages)
+    except:
+        return ""
 
-# Precise citation extraction
-def get_precise_citation(file, query):
-    reader = PdfReader(file)
-    for page_num, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        if query.lower() in text.lower():
-            return f"Page {page_num}"
+def get_citation(text, query):
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if query.lower() in line.lower():
+            return f"Page {i//25 + 1}, Line {i%25 + 1}"
     return "Not Found"
 
-# Improved matching segments
-def improved_match(text, query):
-    matches = re.findall(rf"([^.]*{re.escape(query)}[^.]*)", text, flags=re.IGNORECASE)
-    return matches[0].strip() if matches else "Relevant information found."
-
-# UI Setup
+# ========== UI ==========
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center'>Ask questions related to Indian policies or your uploaded PDFs. Structured results appear below.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center'>Ask any questions or upload PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Upload PDFs
 uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
-
-# Question input
-example_q = "Example: What is the National Education Policy?"
-query = st.text_input("🖋️ Ask your question here:", placeholder=example_q)
+query = st.text_input("🖋️ Ask your question here:", placeholder="Example: What is the National Education Policy?")
 submit = st.button("✍️ Get Answer", use_container_width=True)
 
-# Process
+# ========== PROCESS ==========
 if submit and query:
     with st.spinner("Thinking..."):
-        doc_table, doc_ids, joined_answers = [], [], ""
+        doc_table = []
+        matched_content = []
 
         if uploaded:
             for i, file in enumerate(uploaded):
                 doc_id = f"DOC{i+1:03d}"
-                text = extract_text_cached(file)
+                text = extract_text(file)
                 if query.lower() in text.lower():
-                    citation = get_precise_citation(file, query)
-                    answer_text = improved_match(text, query)
-                    doc_table.append({
-                        "Document ID": doc_id,
-                        "Document Name": file.name,
-                        "Extracted Answer": answer_text,
-                        "Citation": citation
-                    })
-                    doc_ids.append(doc_id)
+                    citation = get_citation(text, query)
+                    match = re.findall(rf"(.{{0,100}}{re.escape(query)}.{{0,200}})", text, re.IGNORECASE)
+                    extracted = match[0] if match else "Relevant content found."
+                    doc_table.append({"Document ID": doc_id, "Extracted Answer": extracted.strip(), "Citation": citation})
+                    matched_content.append(f"{doc_id}: {extracted.strip()}")
 
-            joined_answers = "\n".join([f"{d['Document ID']} ({d['Document Name']}, {d['Citation']}): {d['Extracted Answer']}" for d in doc_table])
-
-        if doc_table:
-            theme_prompt = (
-                "Cluster the provided document answers into themes. "
-                "Clearly mention each theme followed by related Document IDs in parentheses. "
-                "Example format:\n"
-                "Theme 1 – [Theme Name]: Documents (DOC001, DOC002)\n"
-                "Theme 2 – [Another Theme]: Documents (DOC003)\n\n"
-                f"Provided document answers:\n{joined_answers}\n\n"
-                f"Question: {query}"
-            )
-            summary = ask_groq(theme_prompt)
-
-            concise_prompt = (
-                "Using only the provided document answers, give a concise and clear response. "
-                "Explicitly reference Document IDs, Document Names, and exact citations (page numbers). "
-                "Ensure the answer clearly indicates the source. Example format:\n"
-                "\"According to DOC001 (DocumentName.pdf, Page 4), [extracted answer]...\"\n\n"
-                f"Provided document answers:\n{joined_answers}\n\n"
-                f"Question: {query}"
-            )
-            final_answer = ask_groq(concise_prompt)
+        # Final Answer (from Groq + document)
+        if matched_content:
+            answer = ask_groq(f"Based on the following info, give a short and direct answer:\n\n{matched_content}\n\nQ: {query}")
+            theme_prompt = f"Group these document responses into themes with their document IDs:\n{matched_content}"
+            themes = ask_groq(theme_prompt)
         else:
-            final_answer = ask_groq(query)
-            summary = "No matching documents found; answer generated from external knowledge."
+            answer = ask_groq(query)
+            themes = "No theme found."
 
-        # Answer
-        st.markdown("### ✅ Final Answer")
-        st.success(final_answer)
+        # Show Answer
+        st.markdown("### ✅ Answer")
+        st.success(answer)
 
-        # Presentation of Results
         if doc_table:
-            st.markdown("---")
             st.markdown("### 📊 Presentation of Results:")
+            df = pd.DataFrame(doc_table)
+            st.dataframe(df, use_container_width=True)
 
-            df = pd.DataFrame(doc_table)[["Document ID", "Document Name", "Extracted Answer", "Citation"]]
-            st.table(df)
-
-            st.markdown("#### 💡 Synthesized Response (Themes):")
-            st.info(summary)
+            st.markdown("#### 🧠 Final synthesized response:")
+            st.info(themes)
