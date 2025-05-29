@@ -82,7 +82,7 @@ if submit and query:
                     })
                     doc_ids.append(doc_id)
 
-            joined_answers = "\n".join([f"{d['Document ID']}: {d['Extracted Answer']}" for d in doc_table])
+            joined_answers = "\n".join([f"{d['Document ID']}: {d['Extracted Answer']} ({d['Citation']})" for d in doc_table])
 
         if doc_table:
             theme_prompt = (
@@ -92,7 +92,7 @@ if submit and query:
             summary = ask_groq(theme_prompt)
 
             concise_prompt = (
-                f"Give a short and direct answer using only the content provided:\n{joined_answers}\n\nQ: {query}"
+                f"Give a short and direct answer using only the content provided, clearly referencing Document IDs and citations:\n{joined_answers}\n\nQ: {query}"
             )
             final_answer = ask_groq(concise_prompt)
         else:
