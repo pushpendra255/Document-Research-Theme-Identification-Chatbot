@@ -6,12 +6,12 @@ import re
 import uuid
 import pandas as pd
 
-# Config
-BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
+# Configuration
+BOT_NAME = "📘 EduMentor – AI Chatbot"
 GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# 🧠 Ask Groq API
+# Ask Groq API
 def ask_groq(prompt):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -20,7 +20,7 @@ def ask_groq(prompt):
     data = {
         "model": "llama3-70b-8192",
         "messages": [
-            {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and documents."},
+            {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and uploaded PDF documents."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -30,14 +30,14 @@ def ask_groq(prompt):
     except Exception as e:
         return f"❌ API error: {e}"
 
-# 📖 Extract text
-
+# Extract text from PDF
 def extract_text(file):
     try:
         return "\n".join(page.extract_text() or "" for page in PdfReader(file).pages)
     except:
         return ""
 
+# Get citation info
 def get_citation(text, query):
     lines = text.split("\n")
     for i, line in enumerate(lines):
@@ -45,21 +45,21 @@ def get_citation(text, query):
             return f"Page {i//25 + 1}, Line {i%25 + 1}"
     return "Not Found"
 
-# 🌐 UI Setup
+# UI Setup
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# 📂 Upload Section
+# Upload PDFs
 uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
 
-# 💬 Question Input
-example_q = "Example: What is the national education policy?"
+# Question input
+example_q = "Example: What is the National Education Policy?"
 query = st.text_input("🖋️ Ask your question here:", placeholder=example_q)
 submit = st.button("✍️ Get Answer", use_container_width=True)
 
-# 🚀 Submit
+# Process
 if submit and query:
     with st.spinner("Thinking..."):
         doc_table = []
@@ -74,26 +74,40 @@ if submit and query:
                     citation = get_citation(text, query)
                     match_segment = re.findall(rf"(.{{0,100}}{re.escape(query)}.{{0,200}})", text, flags=re.IGNORECASE)
                     answer_text = match_segment[0].strip() if match_segment else "Relevant info found."
-                    doc_table.append({"Document ID": doc_id, "Extracted Answer": answer_text, "Citation": citation})
+                    doc_table.append({
+                        "Document ID": doc_id,
+                        "Extracted Answer": answer_text,
+                        "Citation": citation
+                    })
                     doc_ids.append(doc_id)
                     matched_content.append(answer_text)
 
         if doc_table:
-            theme_prompt = f"Summarize and cluster this into themes with document IDs:\n{matched_content}\n\nQuestion: {query}"
+            joined_answers = "\n".join([f"{doc['Document ID']}: {doc['Extracted Answer']}" for doc in doc_table])
+            theme_prompt = (
+                f"Cluster the following document answers into themes and mention their Document IDs:\n{joined_answers}"
+                f"\n\nThen explain the summary to the question: {query}"
+            )
             summary = ask_groq(theme_prompt)
-            answer = ask_groq(f"Give a short summary based on this:\n{matched_content}\n\nQuestion: {query}")
+
+            concise_prompt = (
+                f"Give a short and direct summary to the question using only the following content:\n{joined_answers}\n\n"
+                f"Q: {query}"
+            )
+            final_answer = ask_groq(concise_prompt)
         else:
-            answer = ask_groq(query)
-            summary = "No documents matched."
+            final_answer = ask_groq(query)
+            summary = "No documents matched the question. The answer is generated from external knowledge."
 
-        # ✅ Show Answer
+        # Answer
         st.markdown("### ✅ Answer")
-        st.success(answer)
+        st.success(final_answer)
 
-        # 📊 Presentation
+        # Presentation
         if doc_table:
             st.markdown("---")
             st.markdown("### 📊 Presentation of Results:")
+
             df = pd.DataFrame(doc_table)
             st.dataframe(df, use_container_width=True)
 
