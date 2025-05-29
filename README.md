@@ -22,7 +22,3 @@ An interactive chatbot that answers questions from PDF documents using Groq's LL
 - [Streamlit](https://streamlit.io)
 - [Groq LLaMA 3 API](https://console.groq.com)
 - [PyPDF2](https://pypi.org/project/PyPDF2)
-
----
-
-✅ Built by Pushpendra Singh as part of the Wasserstoff Gen-AI Internship Task.
