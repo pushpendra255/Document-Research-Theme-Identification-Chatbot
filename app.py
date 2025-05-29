@@ -30,7 +30,7 @@ def ask_groq(prompt):
     except Exception as e:
         return f"❌ API error: {e}"
 
-# PDF text extraction
+# Extract text from PDF
 def extract_text(file):
     try:
         return "\n".join(page.extract_text() or "" for page in PdfReader(file).pages)
@@ -51,7 +51,7 @@ st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs. Su
 st.markdown("---")
 
 uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
-query = st.text_input("🖋️ Ask your question here:", placeholder="Example: What is the National Education Policy?")
+query = st.text_input("🔋 Ask your question here:", placeholder="Example: What is the National Education Policy?")
 submit = st.button("✍️ Get Answer", use_container_width=True)
 
 # Main logic
@@ -79,11 +79,14 @@ if submit and query:
         if doc_table:
             joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])
 
+            # Short, focused answer
             concise_prompt = (
-                f"Answer this question in short using the text below:\n\n{joined_answers}\n\nQ: {query}"
+                f"Answer this question in short using the text below:\n\n{joined_answers}\n\n"
+                f"Q: {query}"
             )
             final_answer = ask_groq(concise_prompt)
 
+            # Theme format output
             theme_prompt = (
                 f"From the following document snippets, identify key themes clearly.\n"
                 f"Use the format 'Theme 1 – Description: Documents (DOC001, DOC002)'.\n\n"
@@ -95,6 +98,7 @@ if submit and query:
             final_answer = ask_groq(query)
             theme_summary = "No theme found."
 
+        # Display section
         st.markdown("### ✅ Answer")
         st.success(final_answer)
 
@@ -108,4 +112,7 @@ if submit and query:
             st.markdown("#### 🧠 Final synthesized response (Themes):")
             st.info(theme_summary)
         else:
-            st.markdown("<p style='color:gray;font-size:13px;'>No document matches found. Answer is generated using AI knowledge only.</p>", unsafe_allow_htm
+            st.markdown("---")
+            st.markdown("<p style='color:gray;font-size:13px;'>No document matches found. Answer is generated using AI knowledge only.</p>", unsafe_allow_html=True)
+            st.markdown("#### 🧠 Final synthesized response (Themes):")
+            st.info(theme_summary)
