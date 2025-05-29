@@ -3,7 +3,6 @@ import os
 from PyPDF2 import PdfReader
 import requests
 import re
-import uuid
 import pandas as pd
 
 # Configuration
@@ -45,23 +44,20 @@ def get_citation(text, query):
             return f"Page {i//25 + 1}, Line {i%25 + 1}"
     return "Not Found"
 
-# UI Setup
+# Streamlit UI
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
-# Upload PDFs
 uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
 
-# Question input
 example_q = "Example: What is the National Education Policy?"
 query = st.text_input("🖋️ Ask your question here:", placeholder=example_q)
 submit = st.button("✍️ Get Answer", use_container_width=True)
 
-# Process
 if submit and query:
-    with st.spinner("Thinking..."):
+    with st.spinner("🤖 Analyzing documents and preparing response..."):
         doc_table = []
         doc_ids = []
         matched_content = []
@@ -85,27 +81,23 @@ if submit and query:
         if doc_table:
             joined_answers = "\n".join([f"{doc['Document ID']}: {doc['Extracted Answer']}" for doc in doc_table])
 
-            theme_prompt = (
-                f"From the following document snippets, identify 1-3 key themes."
-                f" For each theme, explain shortly and mention the Document IDs that support it.\n\n"
-                f"{joined_answers}\n\nQuestion: {query}"
+            summary_prompt = (
+                f"Group the following responses by theme and include the associated document IDs:\n\n{joined_answers}\n\n"
+                f"Then summarize them clearly for this question: {query}"
             )
-            summary = ask_groq(theme_prompt)
+            theme_summary = ask_groq(summary_prompt)
 
-            concise_prompt = (
-                f"Give a short and direct summary to the question using only the following content:\n{joined_answers}\n\n"
-                f"Q: {query}"
+            short_prompt = (
+                f"Give a short, direct answer based only on the following:\n\n{joined_answers}\n\nQuestion: {query}"
             )
-            final_answer = ask_groq(concise_prompt)
+            final_answer = ask_groq(short_prompt)
         else:
             final_answer = ask_groq(query)
-            summary = "No documents matched the question. The answer is generated from external knowledge."
+            theme_summary = "No uploaded documents contained a direct match. Answer generated using external knowledge."
 
-        # Answer
         st.markdown("### ✅ Answer")
         st.success(final_answer)
 
-        # Presentation
         if doc_table:
             st.markdown("---")
             st.markdown("### 📊 Presentation of Results:")
@@ -114,4 +106,4 @@ if submit and query:
             st.dataframe(df, use_container_width=True)
 
             st.markdown("#### 🧠 Final synthesized response:")
-            st.info(summary)
+            st.info(theme_summary)
