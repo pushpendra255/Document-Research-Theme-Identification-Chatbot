@@ -84,9 +84,11 @@ if submit and query:
 
         if doc_table:
             joined_answers = "\n".join([f"{doc['Document ID']}: {doc['Extracted Answer']}" for doc in doc_table])
+
             theme_prompt = (
-                f"Cluster the following document answers into themes and mention their Document IDs:\n{joined_answers}"
-                f"\n\nThen explain the summary to the question: {query}"
+                f"From the following document snippets, identify 1-3 key themes."
+                f" For each theme, explain shortly and mention the Document IDs that support it.\n\n"
+                f"{joined_answers}\n\nQuestion: {query}"
             )
             summary = ask_groq(theme_prompt)
 
