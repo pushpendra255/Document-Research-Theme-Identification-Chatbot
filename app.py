@@ -37,7 +37,7 @@ def extract_text(file):
 # UI Setup
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center'>Ask questions about education policies or uploaded PDFs</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # Upload
