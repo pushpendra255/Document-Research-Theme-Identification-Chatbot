@@ -77,12 +77,13 @@ if submit and query:
                     answer_text = improved_match(text, query)
                     doc_table.append({
                         "Document ID": doc_id,
+                        "Document Name": file.name,
                         "Extracted Answer": answer_text,
                         "Citation": citation
                     })
                     doc_ids.append(doc_id)
 
-            joined_answers = "\n".join([f"{d['Document ID']}: {d['Extracted Answer']} ({d['Citation']})" for d in doc_table])
+            joined_answers = "\n".join([f"{d['Document ID']} ({d['Document Name']}, {d['Citation']}): {d['Extracted Answer']}" for d in doc_table])
 
         if doc_table:
             theme_prompt = (
@@ -92,7 +93,7 @@ if submit and query:
             summary = ask_groq(theme_prompt)
 
             concise_prompt = (
-                f"Give a short and direct answer using only the content provided, clearly referencing Document IDs and citations:\n{joined_answers}\n\nQ: {query}"
+                f"Give a short and direct answer using only the content provided, clearly referencing Document IDs, document names, and citations:\n{joined_answers}\n\nQ: {query}"
             )
             final_answer = ask_groq(concise_prompt)
         else:
@@ -108,7 +109,7 @@ if submit and query:
             st.markdown("---")
             st.markdown("### 📊 Presentation of Results:")
 
-            df = pd.DataFrame(doc_table)
+            df = pd.DataFrame(doc_table)[["Document ID", "Document Name", "Extracted Answer", "Citation"]]
             st.table(df)
 
             st.markdown("#### 💡 Synthesized Response (Themes):")
