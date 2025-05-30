@@ -79,7 +79,7 @@ Tool	Purpose
 
 1. Clone the repository
 
-git clone https://github.com/yourusername/edumentor-chatbot.git
+git clone https://github.com/pushpendra255/Document-Research-Theme-Identification-Chatbot
 cd edumentor-chatbot
 
 
