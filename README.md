@@ -8,8 +8,9 @@ EduMentor is an advanced question-answering chatbot that intelligently reads PDF
 
 🌐 Live Demo
 
-👉 Try it now: edumentor-theme-chatbot.streamlit.app
+👉 Try it now: 
 
+https://edumentor-theme-chatbot.streamlit.app/
 
 
 🔍 Key Features
@@ -108,9 +109,3 @@ Streamlit
 
 PyPDF2
 
-
-
-
-Want a version with GitHub badges and license details too? Just say the word!
-
-/PyPDF2)
