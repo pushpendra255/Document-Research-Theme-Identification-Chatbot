@@ -1,3 +1,6 @@
 streamlit
 PyPDF2
+pandas
 requests
+sentence-transformers
+torch
