@@ -11,7 +11,7 @@ nest_asyncio.apply()
 
 # ------------------ Configuration ------------------
 BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
