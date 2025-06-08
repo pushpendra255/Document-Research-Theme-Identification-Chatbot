@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from PyPDF2 import PdfReader
-import requests
+import httpx
 import re
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
@@ -16,19 +16,22 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # ------------------ Helper Functions ------------------
 def ask_groq(prompt):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and uploaded PDFs."},
-            {"role": "user", "content": prompt}
-        ]
-    }
     try:
-        res = requests.post(GROQ_API_URL, headers=headers, json=data)
+        res = httpx.post(
+            GROQ_API_URL,
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama3-70b-8192",
+                "messages": [
+                    {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and uploaded PDFs."},
+                    {"role": "user", "content": prompt}
+                ]
+            },
+            timeout=30
+        )
         return res.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"❌ API error: {e}"
