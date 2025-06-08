@@ -44,14 +44,14 @@ def extract_text_with_pages(file):
 def semantic_match(query, texts, threshold=0.5):
     matches = []
     query_emb = model.encode(query, convert_to_tensor=True)
-    for doc_id, (page_num, page_text) in enumerate(texts):
+    for page_num, page_text in texts:
         sentences = page_text.split('. ')
         for i, sent in enumerate(sentences):
             if sent.strip():
                 score = util.cos_sim(query_emb, model.encode(sent, convert_to_tensor=True)).item()
                 if score >= threshold:
                     match_segment = f"...{sent.strip()}..."
-                    matches.append((doc_id + 1, page_num, i + 1, match_segment))
+                    matches.append((page_num, i + 1, match_segment))
     return matches
 
 # ------------------ Streamlit UI ------------------
@@ -76,7 +76,7 @@ if submit and query:
                 texts = extract_text_with_pages(file)
                 matches = semantic_match(query, texts)
                 if matches:
-                    page, _, line, segment = matches[0]  # Take first match only
+                    page, line, segment = matches[0]  # Take first match
                     citation = f"Page {page}, Line {line}"
                     doc_table.append({
                         "Document ID": doc_id,
@@ -87,10 +87,11 @@ if submit and query:
                     matched_content.append(f"{doc_id}: {segment}")
 
         if doc_table:
-            joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])[:3000]  # truncate
+            joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])[:3000]  # Trim input
 
             concise_prompt = (
-                f"Answer this question in short using the text below:\n\n{joined_answers}\n\nQ: {query}"
+                f"Answer this question in short using the text below:\n\n{joined_answers}\n\n"
+                f"Q: {query}"
             )
             final_answer = ask_groq(concise_prompt)
 
