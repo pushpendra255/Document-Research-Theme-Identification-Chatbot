@@ -4,14 +4,17 @@ from PyPDF2 import PdfReader
 import requests
 import re
 import pandas as pd
-import uuid
+from sentence_transformers import SentenceTransformer, util
+import torch
 
-# Configuration
+# ------------------ Configuration ------------------
 BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
 GROQ_API_KEY = "2y3S8C3iwcu7aWuliNTXvf8g8C6_69LmBCwm3cY9hF3c2jijw"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Ask Groq API
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# ------------------ Helper Functions ------------------
 def ask_groq(prompt):
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -30,31 +33,38 @@ def ask_groq(prompt):
     except Exception as e:
         return f"❌ API error: {e}"
 
-# Extract text from PDF
-def extract_text(file):
-    try:
-        return "\n".join(page.extract_text() or "" for page in PdfReader(file).pages)
-    except:
-        return ""
+def extract_text_with_pages(file):
+    reader = PdfReader(file)
+    texts = []
+    for page_num, page in enumerate(reader.pages):
+        text = page.extract_text() or ""
+        texts.append((page_num + 1, text))
+    return texts
 
-def get_citation(text, query):
-    lines = text.split("\n")
-    for i, line in enumerate(lines):
-        if query.lower() in line.lower():
-            return f"Page {i//25 + 1}, Line {i%25 + 1}"
-    return "Not Found"
+def semantic_match(query, texts, threshold=0.5):
+    matches = []
+    query_emb = model.encode(query, convert_to_tensor=True)
+    for doc_id, (page_num, page_text) in enumerate(texts):
+        sentences = page_text.split('. ')
+        for i, sent in enumerate(sentences):
+            if sent.strip():
+                score = util.cos_sim(query_emb, model.encode(sent, convert_to_tensor=True)).item()
+                if score >= threshold:
+                    match_segment = f"...{sent.strip()}..."
+                    matches.append((doc_id + 1, page_num, i + 1, match_segment))
+    return matches
 
-# UI
+# ------------------ Streamlit UI ------------------
 st.set_page_config(page_title=BOT_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center'>Ask any questions or upload PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
 query = st.text_input("🔋 Ask your question here:", placeholder="Example: What is the National Education Policy?")
 submit = st.button("✍️ Get Answer", use_container_width=True)
 
-# Main logic
+# ------------------ Main Logic ------------------
 if submit and query:
     with st.spinner("Thinking..."):
         doc_table = []
@@ -63,30 +73,27 @@ if submit and query:
         if uploaded:
             for i, file in enumerate(uploaded):
                 doc_id = f"DOC{i+1:03d}"
-                text = extract_text(file)
-                if query.lower() in text.lower():
-                    citation = get_citation(text, query)
-                    match_segment = re.findall(rf"(.{{0,100}}{re.escape(query)}.{{0,200}})", text, flags=re.IGNORECASE)
-                    answer_text = match_segment[0].strip() if match_segment else "Relevant info found."
+                texts = extract_text_with_pages(file)
+                matches = semantic_match(query, texts)
+                if matches:
+                    page, _, line, segment = matches[0]  # Take first match only
+                    citation = f"Page {page}, Line {line}"
                     doc_table.append({
                         "Document ID": doc_id,
-                        "Extracted Answer": answer_text,
+                        "Extracted Answer": segment,
                         "Citation": citation,
                         "Source File": file.name
                     })
-                    matched_content.append(f"{doc_id}: {answer_text}")
+                    matched_content.append(f"{doc_id}: {segment}")
 
         if doc_table:
-            joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])
+            joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])[:3000]  # truncate
 
-            # Short, focused answer
             concise_prompt = (
-                f"Answer this question in short using the text below:\n\n{joined_answers}\n\n"
-                f"Q: {query}"
+                f"Answer this question in short using the text below:\n\n{joined_answers}\n\nQ: {query}"
             )
             final_answer = ask_groq(concise_prompt)
 
-            # Theme format output
             theme_prompt = (
                 f"From the following document snippets, identify key themes clearly.\n"
                 f"Use the format 'Theme 1 – Description: Documents (DOC001, DOC002)'.\n\n"
@@ -98,18 +105,22 @@ if submit and query:
             final_answer = ask_groq(query)
             theme_summary = "No theme found."
 
-        # Display section
+        # ------------------ Display Results ------------------
         st.markdown("### ✅ Answer")
         st.success(final_answer)
 
         if doc_table:
             st.markdown("---")
             st.markdown("### 📊 Presentation of Results:")
-
             df = pd.DataFrame(doc_table)[["Document ID", "Extracted Answer", "Citation", "Source File"]]
             st.dataframe(df, use_container_width=True)
 
+            csv = df.to_csv(index=False).encode()
+            st.download_button("⬇️ Download Results", data=csv, file_name="results.csv", mime="text/csv")
+
             st.markdown("#### 🧠 Final synthesized response (Themes):")
+            if not theme_summary.lower().startswith("theme"):
+                theme_summary = "No theme found."
             st.info(theme_summary)
         else:
             st.markdown("---")
