@@ -6,6 +6,9 @@ import re
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import torch
+import nest_asyncio
+nest_asyncio.apply()
+
 
 # ------------------ Configuration ------------------
 BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
