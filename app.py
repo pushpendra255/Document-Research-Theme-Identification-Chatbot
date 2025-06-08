@@ -8,7 +8,7 @@ import uuid
 
 # Configuration
 BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "2y3S8C3iwcu7aWuliNTXvf8g8C6_69LmBCwm3cY9hF3c2jijw"
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Ask Groq API
