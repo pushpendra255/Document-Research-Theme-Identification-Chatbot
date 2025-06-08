@@ -9,7 +9,6 @@ import torch
 import nest_asyncio
 nest_asyncio.apply()
 
-
 # ------------------ Configuration ------------------
 BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
 GROQ_API_KEY = "2y3S8C3iwcu7aWuliNTXvf8g8C6_69LmBCwm3cY9hF3c2jijw"
@@ -35,7 +34,11 @@ def ask_groq(prompt):
             },
             timeout=30
         )
-        return res.json()["choices"][0]["message"]["content"].strip()
+        res_json = res.json()
+        if "choices" in res_json:
+            return res_json["choices"][0]["message"]["content"].strip()
+        else:
+            return f"❌ Groq error: {res_json.get('error', {}).get('message', 'Unknown error')}"
     except Exception as e:
         return f"❌ API error: {e}"
 
