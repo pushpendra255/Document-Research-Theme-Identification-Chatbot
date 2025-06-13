@@ -1,42 +1,47 @@
+
+
+   
 import streamlit as st
 import os
+import tempfile
 from PyPDF2 import PdfReader
 import requests
 import re
-import pandas as pd
-import uuid
+from sentence_transformers import SentenceTransformer
+import faiss
+import google.generativeai as genai
 
-# Configuration
-BOT_NAME = "\U0001F4D8 EduMentor – AI Chatbot"
-GROQ_API_KEY = "2y3S8C3iwcu7aWuliNTXvf8g8C6_69LmBCwm3cY9hF3c2jijw"
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+# ========== Configure Gemini ==========
+genai.configure(api_key="AIzaSyBeoYwJuJSaOGyWbNwzgoGl8rb2OtctSN8")
 
-# Ask Groq API
-def ask_groq(prompt):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "llama3-70b-8192",
-        "messages": [
-            {"role": "system", "content": "You are an assistant that gives short and useful answers based on Indian policies and uploaded PDFs."},
-            {"role": "user", "content": prompt}
-        ]
-    }
-    try:
-        res = requests.post(GROQ_API_URL, headers=headers, json=data)
-        return res.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        return f"❌ API error: {e}"
+# ========== Setup ==========
+model = SentenceTransformer("all-MiniLM-L6-v2")
+doc_index = faiss.IndexFlatL2(384)
+doc_texts = []
+doc_ids = []
 
-# Extract text from PDF
+# ========== PDF Extraction ==========
 def extract_text(file):
     try:
-        return "\n".join(page.extract_text() or "" for page in PdfReader(file).pages)
+        reader = PdfReader(file)
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
     except:
         return ""
 
+# ========== Vector Storage ==========
+def store_document(text, doc_id):
+    doc_ids.append(doc_id)
+    doc_texts.append(text)
+    vec = model.encode([text])
+    doc_index.add(vec)
+
+# ========== Search ==========
+def search_documents(query):
+    q_vec = model.encode([query])
+    D, I = doc_index.search(q_vec, k=3)
+    return [doc_texts[i] for i in I[0] if i < len(doc_texts)]
+
+# ========== Citation ==========
 def get_citation(text, query):
     lines = text.split("\n")
     for i, line in enumerate(lines):
@@ -44,75 +49,70 @@ def get_citation(text, query):
             return f"Page {i//25 + 1}, Line {i%25 + 1}"
     return "Not Found"
 
-# UI
-st.set_page_config(page_title=BOT_NAME, layout="wide")
-st.markdown(f"<h1 style='text-align:center;color:#3A7CA5'>{BOT_NAME}</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center'>Ask any questions or uploaded PDFs. Summary and results appear below.</p>", unsafe_allow_html=True)
-st.markdown("---")
+# ========== Ask Gemini ==========
+def ask_gemini(prompt):
+    model = genai.GenerativeModel("gemini-pro")
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        return f"❌ Gemini API error: {e}"
 
-uploaded = st.file_uploader("📄 Upload PDFs (optional)", type="pdf", accept_multiple_files=True)
-query = st.text_input("🔋 Ask your question here:", placeholder="Example: What is the National Education Policy?")
-submit = st.button("✍️ Get Answer", use_container_width=True)
+# ========== Streamlit UI ==========
+st.set_page_config(page_title="EduMentor – Gemini Chatbot", layout="wide")
+st.title("📘 EduMentor – Policy Research Chatbot (Gemini-Powered)")
 
-# Main logic
+uploaded_files = st.file_uploader("📄 Upload PDFs", type="pdf", accept_multiple_files=True)
+query = st.text_input("🔍 Ask your question:", placeholder="Example: What is the National Education Policy?")
+submit = st.button("✍️ Get Answer")
+
 if submit and query:
-    with st.spinner("Thinking..."):
-        doc_table = []
-        matched_content = []
+    with st.spinner("Analyzing documents..."):
+        matched_docs = []
+        answer_table = []
 
-        if uploaded:
-            for i, file in enumerate(uploaded):
+        if uploaded_files:
+            for i, file in enumerate(uploaded_files):
                 doc_id = f"DOC{i+1:03d}"
-                text = extract_text(file)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(file.read())
+                    tmp_path = tmp.name
+                text = extract_text(tmp_path)
+                store_document(text, doc_id)
+
                 if query.lower() in text.lower():
                     citation = get_citation(text, query)
-                    match_segment = re.findall(rf"(.{{0,100}}{re.escape(query)}.{{0,200}})", text, flags=re.IGNORECASE)
-                    answer_text = match_segment[0].strip() if match_segment else "Relevant info found."
-                    doc_table.append({
+                    snippet = re.findall(rf"(.{{0,100}}{re.escape(query)}.{{0,200}})", text, flags=re.IGNORECASE)
+                    answer_text = snippet[0].strip() if snippet else "Relevant info found."
+                    answer_table.append({
                         "Document ID": doc_id,
                         "Extracted Answer": answer_text,
                         "Citation": citation,
                         "Source File": file.name
                     })
-                    matched_content.append(f"{doc_id}: {answer_text}")
+                    matched_docs.append(f"{doc_id}: {answer_text}")
 
-        if doc_table:
-            joined_answers = "\n".join([f"{d['Document ID']} – {d['Extracted Answer']}" for d in doc_table])
+        if matched_docs:
+            joined_answers = "\n".join(matched_docs)
+            prompt = f"Answer the following based on document text:\n\n{joined_answers}\n\nQ: {query}"
+            final_answer = ask_gemini(prompt)
 
-            # Short, focused answer
-            concise_prompt = (
-                f"Answer this question in short using the text below:\n\n{joined_answers}\n\n"
-                f"Q: {query}"
-            )
-            final_answer = ask_groq(concise_prompt)
-
-            # Theme format output
             theme_prompt = (
-                f"From the following document snippets, identify key themes clearly.\n"
-                f"Use the format 'Theme 1 – Description: Documents (DOC001, DOC002)'.\n\n"
-                f"{joined_answers}\n\nIf no clear themes found, respond with 'No theme found.'"
+                f"Identify themes from the document snippets below.\n"
+                f"Use this format:\nTheme 1 – Description: Documents (DOC001, DOC002)\n\n{joined_answers}"
             )
-            theme_summary = ask_groq(theme_prompt)
-
+            themes = ask_gemini(theme_prompt)
         else:
-            final_answer = ask_groq(query)
-            theme_summary = "No theme found."
+            final_answer = ask_gemini(query)
+            themes = "No theme found."
 
-        # Display section
         st.markdown("### ✅ Answer")
         st.success(final_answer)
 
-        if doc_table:
-            st.markdown("---")
-            st.markdown("### 📊 Presentation of Results:")
+        if matched_docs:
+            import pandas as pd
+            st.markdown("### 📊 Matching Document Results")
+            st.dataframe(pd.DataFrame(answer_table), use_container_width=True)
 
-            df = pd.DataFrame(doc_table)[["Document ID", "Extracted Answer", "Citation", "Source File"]]
-            st.dataframe(df, use_container_width=True)
-
-            st.markdown("#### 🧠 Final synthesized response (Themes):")
-            st.info(theme_summary)
-        else:
-            st.markdown("---")
-            st.markdown("<p style='color:gray;font-size:13px;'>No document matches found. Answer is generated using AI knowledge only.</p>", unsafe_allow_html=True)
-            st.markdown("#### 🧠 Final synthesized response (Themes):")
-            st.info(theme_summary)     ye app.py ka code hai........ngrok API KEY --------  2y3S8C3iwcu7aWuliNTXvf8g8C6_69LmBCwm3cY9hF3c2jijw
+        st.markdown("### 🧠 Theme Summary")
+        st.info(themes)
