@@ -1,3 +1,5 @@
 streamlit
 PyPDF2
-requests
+sentence-transformers
+faiss-cpu
+google-generativeai
